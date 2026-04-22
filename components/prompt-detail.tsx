@@ -1,8 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { AiTarget, PromptEntry } from "@/lib/prompts";
 import { previewRegistry } from "./preview-registry";
+import { FRAMEWORKS, applyFramework, type Framework } from "@/lib/framework";
+import { useBookmarks } from "@/lib/bookmarks";
+import { track } from "@/lib/analytics";
+import { OpenInActions } from "./open-in-actions";
+import {
+  RemixPanel,
+  applyRemix,
+  DEFAULT_REMIX,
+  type RemixVars,
+} from "./remix-panel";
 
 const TARGETS: { id: AiTarget; label: string; hint: string }[] = [
   { id: "chatgpt", label: "ChatGPT", hint: "GPT-style, descriptive" },
@@ -19,7 +30,11 @@ export function PromptDetail({
   onClose: () => void;
 }) {
   const [target, setTarget] = useState<AiTarget>("chatgpt");
+  const [framework, setFramework] = useState<Framework>("tailwind");
+  const [remix, setRemix] = useState<RemixVars>(DEFAULT_REMIX);
+  const [showRemix, setShowRemix] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { has, toggle } = useBookmarks();
 
   useEffect(() => {
     if (!prompt) return;
@@ -37,16 +52,32 @@ export function PromptDetail({
   useEffect(() => {
     setCopied(false);
     setTarget("chatgpt");
+    setFramework("tailwind");
+    setRemix(DEFAULT_REMIX);
+    setShowRemix(false);
   }, [prompt]);
+
+  const text = useMemo(() => {
+    if (!prompt) return "";
+    let t = prompt.prompts[target];
+    t = applyFramework(t, framework);
+    t = applyRemix(t, remix);
+    return t;
+  }, [prompt, target, framework, remix]);
 
   if (!prompt) return null;
 
   const Preview = previewRegistry[prompt.id];
-  const text = prompt.prompts[target];
+  const bookmarked = has(prompt.id);
 
   const copy = async () => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
+    track("copy_prompt", {
+      promptId: prompt.id,
+      target,
+      framework,
+    });
     setTimeout(() => setCopied(false), 1600);
   };
 
@@ -74,12 +105,30 @@ export function PromptDetail({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <Link
+              href={`/prompts/${prompt.id}`}
               className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-white/75 hover:bg-white/[0.06]"
+              title="Open in new tab"
+            >
+              ↗ Open
+            </Link>
+            <button
+              onClick={() => {
+                toggle(prompt.id);
+                track("toggle_bookmark", {
+                  promptId: prompt.id,
+                  next: !bookmarked,
+                });
+              }}
+              className={`rounded-md border px-2.5 py-1.5 text-[12px] transition ${
+                bookmarked
+                  ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-soft)] text-white"
+                  : "border-white/10 bg-white/[0.03] text-white/75 hover:bg-white/[0.06]"
+              }`}
               aria-label="Bookmark"
               title="Bookmark"
             >
-              ☆ Save
+              {bookmarked ? "★ Saved" : "☆ Save"}
             </button>
             <button
               onClick={onClose}
@@ -133,20 +182,61 @@ export function PromptDetail({
                   </button>
                 ))}
               </div>
-              <div className="mt-3 mb-3 flex items-center justify-between">
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.12em] text-white/40">
+                  Framework
+                </div>
+                <select
+                  value={framework}
+                  onChange={(e) => setFramework(e.target.value as Framework)}
+                  className="rounded-md border border-white/10 bg-white/[0.02] px-2 py-1 text-[12px] text-white/80 focus:outline-none"
+                >
+                  {FRAMEWORKS.map((f) => (
+                    <option key={f.id} value={f.id} className="bg-[#141420]">
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setShowRemix((v) => !v)}
+                  className={`ml-auto rounded-md border px-2.5 py-1 text-[11px] transition ${
+                    showRemix
+                      ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-soft)] text-white"
+                      : "border-white/10 bg-white/[0.02] text-white/70 hover:text-white"
+                  }`}
+                >
+                  {showRemix ? "Hide remix" : "Remix…"}
+                </button>
+              </div>
+
+              {showRemix && (
+                <div className="mt-3">
+                  <RemixPanel vars={remix} onChange={setRemix} />
+                </div>
+              )}
+
+              <div className="mb-3 mt-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[11px] text-white/45">
                   {text.length.toLocaleString()} characters
                 </div>
-                <button
-                  onClick={copy}
-                  className={`rounded-md px-3 py-1.5 text-[12px] font-medium transition ${
-                    copied
-                      ? "bg-emerald-400 text-black"
-                      : "bg-white text-black hover:bg-white/90"
-                  }`}
-                >
-                  {copied ? "✓ Copied" : "Copy prompt"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <OpenInActions
+                    target={target}
+                    prompt={text}
+                    promptId={prompt.id}
+                  />
+                  <button
+                    onClick={copy}
+                    className={`rounded-md px-3 py-1.5 text-[12px] font-medium transition ${
+                      copied
+                        ? "bg-emerald-400 text-black"
+                        : "bg-white text-black hover:bg-white/90"
+                    }`}
+                  >
+                    {copied ? "✓ Copied" : "Copy prompt"}
+                  </button>
+                </div>
               </div>
             </div>
             <div className="relative min-h-0 flex-1 overflow-auto px-5 py-4">

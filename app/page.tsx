@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
 import { PromptCard } from "@/components/prompt-card";
@@ -81,9 +82,18 @@ export default function Home() {
             <button className="rounded-md bg-white px-4 py-2 text-[13px] font-medium text-black hover:bg-white/90">
               Browse library ↓
             </button>
-            <button className="rounded-md border border-white/10 bg-white/[0.03] px-4 py-2 text-[13px] text-white/80 hover:bg-white/[0.06]">
-              How it works
-            </button>
+            <Link
+              href="/themes"
+              className="rounded-md border border-white/10 bg-white/[0.03] px-4 py-2 text-[13px] text-white/80 hover:bg-white/[0.06]"
+            >
+              Explore themes →
+            </Link>
+            <Link
+              href="/case-studies"
+              className="rounded-md border border-white/10 bg-white/[0.03] px-4 py-2 text-[13px] text-white/80 hover:bg-white/[0.06]"
+            >
+              Case studies
+            </Link>
           </div>
         </div>
       </section>
